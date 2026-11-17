@@ -19,3 +19,7 @@ OCS网课助手_全域名通用版_*.user.js
 Thumbs.db
 desktop.ini
 *.log
+
+# 本地发布中间产物
+_release/
+_test/
