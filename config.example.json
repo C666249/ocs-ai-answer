@@ -1,0 +1,37 @@
+{
+  "_说明": "把本文件复制/重命名为 config.json，填好 llm.api_key 后保存。api_key 留空时服务会进入 mock 模式（只验证链路、不消耗额度）。",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8321,
+    "api_token": "",
+    "open_browser": true
+  },
+  "llm": {
+    "base_url": "https://api.deepseek.com",
+    "api_key": "",
+    "model": "deepseek-chat",
+    "temperature": 0.2,
+    "max_tokens": 300,
+    "timeout": 35,
+    "max_concurrency": 4
+  },
+  "behavior": {
+    "confidence_threshold": 0.35,
+    "max_retry": 1,
+    "cache_enabled": true
+  },
+  "route": {
+    "_说明": "mode 三种：ai_only=只走AI；hybrid=本地题库优先、没命中转AI（推荐）；bank_only=只用本地题库、没命中就留空。exact_only=true 表示题干必须完全一致才算命中（推荐开），关掉才启用模糊匹配。save_ai_answers 表示 AI 答完顺手记进题库（标记未核实）。",
+    "mode": "hybrid",
+    "exact_only": true,
+    "match_threshold": 0.95,
+    "use_unverified": true,
+    "save_ai_answers": true
+  },
+  "pricing": {
+    "_说明": "单价：人民币元 / 百万 tokens。仅用于估算花费，不影响实际扣费。",
+    "input": 1.0,
+    "cached_input": 0.02,
+    "output": 2.0
+  }
+}

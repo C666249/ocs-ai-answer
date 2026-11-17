@@ -1,0 +1,21 @@
+# 本地数据与运行时：不进仓库
+runtime/
+data/
+backups/
+dist/
+__pycache__/
+*.pyc
+
+# 含 API key，绝不入库（模板见 config.example.json）
+config.json
+
+# 第三方脚本，不随仓库分发
+OCS网课助手_全域名通用版_*.user.js
+
+# 导出的可读题库
+题库_可读版.txt
+
+# 系统垃圾
+Thumbs.db
+desktop.ini
+*.log

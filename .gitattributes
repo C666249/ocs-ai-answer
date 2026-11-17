@@ -1,0 +1,9 @@
+# Windows 批处理必须是 CRLF，否则 cmd 会丢参数（这个坑踩过一次）
+*.bat text eol=crlf
+
+# 其余文本统一 LF
+*.py    text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
