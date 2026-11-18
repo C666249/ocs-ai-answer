@@ -46,6 +46,8 @@ LOG_FILE = os.path.join(DATA_DIR, "answers.jsonl")
 
 CFG = {}
 MOCK = False
+# --mock 启动时置 True：这时即使用户在网页上填了 key，也依然不调模型
+FORCE_MOCK = False
 SEM = threading.Semaphore(4)
 STATS_LOCK = threading.Lock()
 STATS = {"total": 0, "cache_hit": 0, "bank_hit": 0, "bank_miss": 0,
@@ -1146,6 +1148,19 @@ color:#666;margin-left:6px;font-weight:400}
 <h1>OCS AI 题库</h1>
 <div class="sub">服务运行中 · 模型 <code>__MODEL__</code> · <span id="health" class="ok">检查中…</span></div>
 
+<h2>第 0 步｜填大模型 API key</h2>
+
+<div class="card" id="keyCard">
+<div class="ttl">在这里填 key，保存后立即生效</div>
+<div class="desc">到 <code>platform.deepseek.com</code> 创建 key，复制粘贴到下面。key 只写进这台电脑的 <code>config.json</code>，不会上传到任何地方、也不会进 Git 仓库。换电脑时只需要在这里重填一次。</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..."
+ style="flex:1;min-width:260px;border:1px solid #d9d9d9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:ui-monospace,Consolas,monospace;color:#1a1a1a">
+<button onclick="saveKey(this)">保存并启用</button>
+</div>
+<div class="hint" id="keyMsg">读取中…</div>
+</div>
+
 <h2>三步开始</h2>
 
 <div class="card"><div class="step"><div class="num">1</div><div style="flex:1">
@@ -1224,14 +1239,53 @@ function fallback(t,done){
   try{document.execCommand('copy');done()}catch(e){alert('复制失败，请手动打开 ocs-题库配置.json')}
   document.body.removeChild(ta);
 }
-fetch('/health').then(r=>r.json()).then(d=>{
-  document.getElementById('health').textContent = d.mock ? 'mock 模式（未接模型）' : '已连接模型';
-});
-fetch('/balance').then(r=>r.json()).then(d=>{
-  const el=document.getElementById('balance');
-  if(!el) return;
-  el.textContent = d.ok ? ('¥'+d.total+'（充值 ¥'+d.topped_up+' / 赠送 ¥'+d.granted+'）') : (d.msg||'余额查询失败');
-});
+function loadHealth(){
+  fetch('/health').then(r=>r.json()).then(d=>{
+    document.getElementById('health').textContent = d.mock ? 'mock 模式（未接模型）' : '已连接模型';
+  });
+}
+function loadBalance(){
+  fetch('/balance').then(r=>r.json()).then(d=>{
+    const el=document.getElementById('balance');
+    if(!el) return;
+    el.textContent = d.ok ? ('¥'+d.total+'（充值 ¥'+d.topped_up+' / 赠送 ¥'+d.granted+'）') : (d.msg||'余额查询失败');
+  });
+}
+function loadSettings(){
+  const m=document.getElementById('keyMsg');
+  fetch('/settings').then(r=>r.json()).then(d=>{
+    if(d.has_key){
+      m.innerHTML='当前已保存 <code>'+d.api_key+'</code> · 模型 <code>'+d.model+'</code>'
+        + (d.mock?' · <span style="color:#c00">但当前处于 mock 模式</span>':' · <span class="ok">已启用</span>')
+        + '<br>要换 key 直接在下面粘新的覆盖，不用改文件。';
+    } else {
+      m.innerHTML='<span style="color:#c00">还没填 key</span> —— 现在处于 mock 模式：能通链路、不出真答案。填好保存即可。';
+    }
+  }).catch(()=>{ m.textContent='读取设置失败，刷新页面重试'; });
+}
+function saveKey(btn){
+  const el=document.getElementById('keyInput');
+  const m=document.getElementById('keyMsg');
+  const v=(el.value||'').trim();
+  if(!v){ m.innerHTML='<span style="color:#c00">先把 key 粘进来</span>'; el.focus(); return; }
+  btn.disabled=true; const old=btn.textContent; btn.textContent='保存中…';
+  fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({api_key:v})})
+   .then(r=>r.json()).then(d=>{
+     if(d.ok){
+       m.innerHTML='<span class="ok">✓ '+d.msg+'</span> 当前：<code>'+d.api_key+'</code>';
+       el.value='';
+       loadHealth(); loadBalance();
+     } else {
+       m.innerHTML='<span style="color:#c00">'+d.msg+'</span>';
+     }
+   }).catch(e=>{ m.innerHTML='<span style="color:#c00">请求失败：'+e+'</span>'; })
+   .finally(()=>{ btn.disabled=false; btn.textContent=old; });
+}
+
+loadHealth();
+loadBalance();
+loadSettings();
 fetch('/stats').then(r=>r.json()).then(d=>{
   const s=d.stats||{},c=d.cache||{},u=d.usage||{},b=d.bank||{};
   const rows=[['总请求',s.total||0],
@@ -1438,8 +1492,54 @@ def save_config():
         return False
 
 
+API_KEY_RE = re.compile(r"^sk-[A-Za-z0-9_\-]{16,}$")
+
+
+def mask_api_key(k):
+    """只露头尾：控制台截图/录屏时不会把整个 key 带出去。"""
+    k = str(k or "").strip()
+    if not k:
+        return ""
+    if len(k) <= 10:
+        return k[:3] + "****"
+    return k[:6] + "****" + k[-4:]
+
+
+def settings_view():
+    key = str(CFG.get("llm", {}).get("api_key", "") or "").strip()
+    filled = bool(key) and not key.startswith("sk-在这里") and "填" not in key
+    return {
+        "ok": True,
+        "has_key": filled,
+        "api_key": mask_api_key(key) if filled else "",
+        "base_url": CFG.get("llm", {}).get("base_url", ""),
+        "model": CFG.get("llm", {}).get("model", ""),
+        "mock": MOCK,
+        "force_mock": FORCE_MOCK,
+    }
+
+
+def apply_api_key(raw):
+    """网页上填的 key：校验 → 落盘 → 热生效。不用重启，也不用去改 json。"""
+    global MOCK
+    key = str(raw or "").strip().strip('"').strip("'")
+    if not key:
+        return {"ok": False, "msg": "key 不能为空"}
+    if not API_KEY_RE.match(key):
+        return {"ok": False,
+                "msg": "格式不对：应以 sk- 开头，后面跟一串字母数字。请从平台复制完整 key，注意别带上引号或空格。"}
+    CFG.setdefault("llm", {})["api_key"] = key
+    if not save_config():
+        return {"ok": False, "msg": "写入 config.json 失败，请检查目录是否只读"}
+    if not FORCE_MOCK:
+        MOCK = False
+    log("已通过网页设置 api_key（%s），即时生效" % mask_api_key(key))
+    return {"ok": True, "api_key": mask_api_key(key), "mock": MOCK,
+            "msg": "已保存" if not FORCE_MOCK else "已保存，但当前是 --mock 启动，仍不会调用模型"}
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "OCSAI/1.1"
+    server_version = "OCSAI/1.2"
     def log_message(self, fmt, *args):
         pass  # 关掉默认逐请求日志，避免刷屏
 
@@ -1533,6 +1633,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 txt = "[]"
             return self._send(200, txt, "application/json; charset=utf-8")
+        if path == "/settings":
+            # 网页向导填 key：GET 看当前状态（key 只回显掩码），POST 保存并热生效
+            if self.command == "POST":
+                return self._send(200, apply_api_key(p.get("api_key")))
+            return self._send(200, settings_view())
         if path == "/health":
             return self._send(200, {"status": "ok", "mock": MOCK,
                                     "model": CFG.get("llm", {}).get("model")})
@@ -1767,7 +1872,7 @@ class AnswerServer(ThreadingHTTPServer):
 
 
 def main():
-    global CFG, MOCK, SEM
+    global CFG, MOCK, SEM, CONFIG_PATH
     setup_stdout()
     ap = argparse.ArgumentParser(description="OCS AI 题库服务")
     ap.add_argument("--config", default=CONFIG_PATH)
@@ -1778,6 +1883,10 @@ def main():
     ap.add_argument("--stats", action="store_true")
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
+
+    # --config 指定了别的文件时，save_config() 也必须写同一份，
+    # 否则网页上保存 key 会写回默认的 config.json，把正跑的配置冲掉。
+    CONFIG_PATH = os.path.abspath(args.config)
 
     if args.clear_cache:
         conn = db_conn()
@@ -1802,10 +1911,12 @@ def main():
 
     key = str(CFG.get("llm", {}).get("api_key", "")).strip()
     if args.mock:
+        global FORCE_MOCK
+        FORCE_MOCK = True
         MOCK = True
     elif not key or key.startswith("sk-在这里") or "填" in key:
         MOCK = True
-        log("未配置 api_key，已进入 mock 模式（只验证链路，不调用模型）")
+        log("未填写 api_key，已进入 mock 模式（在网页向导里填好 key 会自动切换，无需重启）")
 
     SEM = threading.Semaphore(int(CFG.get("llm", {}).get("max_concurrency", 4)))
 

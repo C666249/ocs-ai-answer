@@ -11,10 +11,12 @@
 ## 快速开始（新电脑）
 
 1. 到 **Releases** 下载 `OCS-AI-full.zip`，解压到固定位置，例如 `D:\OCS-AI`
-2. 编辑 `config.json`，把 `llm.api_key` 换成你自己的 DeepSeek key
-3. 双击 `1-双击启动.bat`，黑窗口不要关
-4. 浏览器打开 `http://127.0.0.1:8321`，按页面提示安装两个脚本
-5. 装 ScriptCat（脚本猫）扩展后，两个 `.user.js` 才能被接管
+2. 双击 `1-双击启动.bat`，黑窗口不要关
+3. 浏览器打开 `http://127.0.0.1:8321`
+4. 页面最上方「**第 0 步｜填大模型 API key**」里粘贴你的 key，点「保存并启用」——立即生效，不用改文件、不用重启
+5. 同一页面按提示点两个按钮装脚本（需要先装 ScriptCat 脚本猫扩展）
+
+没填 key 时服务处于 **mock 模式**：链路能通，但不产出真答案，页面会红字提示。
 
 详细步骤见 `使用说明.txt`。
 
@@ -51,7 +53,13 @@ config.example.json       配置模板（key 留空）
 - 题库主库：浏览器（脚本猫脚本存储，`ocsai_bank_v1`）
 - 本地镜像：`data/bank.db`（删了不影响，下次开页面自动同步回来）
 - AI 缓存：`data/cache.db`
-- 密钥：`config.json`（**已在 .gitignore 里，不会进仓库**）
+- 密钥：`config.json`（**已在 .gitignore 里，不会进仓库**）。网页上填的 key 就是写进这个文件，回显只显示头尾掩码。
+
+## 第三方
+
+`OCS网课助手_全域名通用版.user.js` 是 [OCS(online-course-script)](https://docs.ocsjs.com) 的脚本，
+作者 **enncy**，MIT 许可，版权归原作者。本仓库仅为方便一键安装而随包携带，未作任何修改。
+需要最新版请去官方仓库获取。
 
 ## 安全说明
 
